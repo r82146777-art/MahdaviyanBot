@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ربات مهدویان - ارسال محتوای مذهبی هر ۳۰ دقیقه به کانال روبیکا
+ربات مهدویان - ارسال خودکار محتوای مذهبی هر ۱۵ دقیقه به کانال روبیکا
 """
 
 import os
@@ -14,7 +14,7 @@ from contents import CONTENTS
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")  # مثلاً c0xxxxxxxx یا @Mahdaviyan_azari
+CHAT_ID = os.getenv("CHAT_ID")  # مثلاً c0xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 API_BASE = f"https://botapi.rubika.ir/v3/{BOT_TOKEN}"
 
@@ -33,7 +33,7 @@ def send_message(chat_id: str, text: str) -> dict:
         return {"status": "ERROR", "error": str(e)}
 
 def get_random_content() -> str:
-    """یک محتوای تصادفی از لیست برمی‌گرداند"""
+    """یک محتوای تصادفی از بانک محتوا برمی‌گرداند"""
     return random.choice(CONTENTS)
 
 def main():
@@ -44,7 +44,7 @@ def main():
 
     print("✅ ربات مهدویان شروع به کار کرد...")
     print(f"کانال هدف: {CHAT_ID}")
-    print("هر ۳۰ دقیقه یک محتوا ارسال می‌شود.\n")
+    print("هر ۱۵ دقیقه یک محتوا به صورت خودکار ارسال می‌شود.\n")
 
     while True:
         content = get_random_content()
@@ -57,9 +57,9 @@ def main():
         else:
             print(f"⚠️ پاسخ سرور: {result}\n")
         
-        # ۳۰ دقیقه صبر (۱۸۰۰ ثانیه)
-        print("⏳ منتظر ۳۰ دقیقه بعدی...")
-        time.sleep(1800)
+        # ۱۵ دقیقه صبر (۹۰۰ ثانیه)
+        print("⏳ منتظر ۱۵ دقیقه بعدی...")
+        time.sleep(900)
 
 if __name__ == "__main__":
     main()
