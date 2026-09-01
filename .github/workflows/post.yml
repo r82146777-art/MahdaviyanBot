@@ -1,0 +1,44 @@
+name: Post Mahdavi Content every 30 minutes
+
+on:
+  schedule:
+    # هر ۳۰ دقیقه (UTC)
+    - cron: '*/30 * * * *'
+  workflow_dispatch:  # امکان اجرای دستی
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Send one content to channel
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: |
+          python -c "
+import os, random, requests
+from contents import CONTENTS
+
+token = os.environ['BOT_TOKEN']
+chat_id = os.environ['CHAT_ID']
+content = random.choice(CONTENTS)
+
+url = f'https://botapi.rubika.ir/v3/{token}/sendMessage'
+payload = {'chat_id': chat_id, 'text': content}
+
+resp = requests.post(url, json=payload, timeout=20)
+print(resp.status_code)
+print(resp.text)
+"
