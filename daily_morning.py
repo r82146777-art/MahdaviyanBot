@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-بسته صبحگاهی کانال مهدویان (حدود ۸ صبح تهران):
-۱) تقویم روز
-۲) سه حکمت از نهج‌البلاغه
-۳) یک خطبه + یک نامه (گزیده)
-۴) یک صفحه قرآن (عربی + ترجمه)
+بسته صبحگاهی کانال مهدویان (حدود ۸ صبح تهران)
 """
 import json
 import os
@@ -19,6 +15,7 @@ from nahj_content import HIKAM, KHUTAB, LETTERS
 
 API_TIMEOUT = 30
 STATE_FILE = Path("state.json")
+CHANNEL_FOOTER = "\n\n@Mahdaviyan_azari"
 DESTINATIONS = [
     "@Mahdaviyan_azari",
     "c0BnCQS000e39851ca7e6fc6421d949d",
@@ -43,6 +40,13 @@ WEEKDAYS_FA = [
 
 def tehran_now():
     return datetime.now(TEHRAN)
+
+
+def with_footer(text):
+    body = (text or "").rstrip()
+    if body.endswith("@Mahdaviyan_azari"):
+        return body
+    return body + CHANNEL_FOOTER
 
 
 def load_state():
@@ -78,6 +82,7 @@ def send(token, chat_id, text):
 
 
 def send_any(token, text):
+    text = with_footer(text)
     for chat_id in DESTINATIONS:
         if not chat_id:
             continue
@@ -146,12 +151,10 @@ def main():
         print("Morning package already sent today.")
         return 0
 
-    # 1) تقویم
     if not send_any(token, calendar_text(now)):
         return 1
     time.sleep(1.2)
 
-    # 2) سه حکمت
     hikam, hi = take_items(HIKAM, int(state.get("hikam_index", 0)), 3)
     msg = "📖 سه حکمت از نهج‌البلاغه\n\n" + "\n\n".join(hikam)
     if not send_any(token, msg):
@@ -159,7 +162,6 @@ def main():
     state["hikam_index"] = hi
     time.sleep(1.2)
 
-    # 3) خطبه + نامه
     kh, ki = take_items(KHUTAB, int(state.get("khutba_index", 0)), 1)
     lt, li = take_items(LETTERS, int(state.get("letter_index", 0)), 1)
     msg2 = "📜 خطبه و نامه از نهج‌البلاغه\n\n" + kh[0] + "\n\n" + lt[0]
@@ -169,7 +171,6 @@ def main():
     state["letter_index"] = li
     time.sleep(1.2)
 
-    # 4) صفحه قرآن
     page = int(state.get("quran_page", 1))
     if page < 1 or page > 604:
         page = 1

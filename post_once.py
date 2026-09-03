@@ -2,12 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 ارسال یک پست به کانال مهدویان بدون تکرار در بازه ۱۵ دقیقه‌ای.
-
-ایده اصلی:
-- هر بازه ۱۵ دقیقه‌ای یک «اسلات» یکتا دارد (بر اساس timestamp).
-- اگر برای همان اسلات قبلاً پست شده باشد، دوباره ارسال نمی‌شود.
-- متن از روی شماره اسلات انتخاب می‌شود تا اجرای هم‌زمان هم همان ایندکس را ببیند،
-  ولی فقط یک اجرا اجازه ارسال دارد (قفل اسلات در state).
 """
 import hashlib
 import json
@@ -22,8 +16,9 @@ from nahj_content import HIKAM, KHUTAB, LETTERS
 
 API_TIMEOUT = 25
 STATE_FILE = Path("state.json")
-SLOT_SECONDS = 15 * 60  # ۱۵ دقیقه
+SLOT_SECONDS = 15 * 60
 RECENT_LIMIT = 80
+CHANNEL_FOOTER = "\n\n@Mahdaviyan_azari"
 
 DESTINATIONS = [
     "@Mahdaviyan_azari",
@@ -44,6 +39,13 @@ for letter in LETTERS:
 
 def text_hash(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def with_footer(text):
+    body = (text or "").rstrip()
+    if body.endswith("@Mahdaviyan_azari"):
+        return body
+    return body + CHANNEL_FOOTER
 
 
 def current_slot():
@@ -70,7 +72,6 @@ def save_state(state):
 
 
 def fetch_external_ayah():
-    """آیه تصادفی از API عمومی قرآن (تنوع بیرونی)."""
     try:
         r = requests.get("https://api.alquran.cloud/v1/ayah/random/fa.fooladvand", timeout=20)
         r.raise_for_status()
@@ -96,11 +97,9 @@ def fetch_external_ayah():
 
 
 def pick_text(slot, state):
-    """انتخاب متن یکتا برای این اسلات؛ اگر در recent بود، بعدی را امتحان می‌کند."""
     recent = set(state.get("last_hashes") or [])
     n = len(POOL)
 
-    # هر ۸ اسلات یک‌بار از منبع بیرونی
     if slot % 8 == 0:
         external = fetch_external_ayah()
         if external:
@@ -115,7 +114,6 @@ def pick_text(slot, state):
         if h not in recent:
             return text, h, idx
 
-    # اگر همه recent پر بود، از اسلات خام استفاده کن
     idx = slot % n
     text = POOL[idx]
     return text, text_hash(text), idx
@@ -146,6 +144,7 @@ def main():
         return 0
 
     text, h, meta = pick_text(slot, state)
+    text = with_footer(text)
     print("slot=", slot, "meta=", meta, "hash=", h)
     print("preview:", text[:120])
 
@@ -164,7 +163,6 @@ def main():
         print("ERROR: could not send")
         return 1
 
-    # فقط بعد از ارسال موفق قفل اسلات و هش را ثبت کن
     state["last_slot"] = slot
     hashes = state.get("last_hashes") or []
     hashes.append(h)
