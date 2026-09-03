@@ -3,8 +3,11 @@ name: Post every 15 minutes
 on:
   workflow_dispatch:
   schedule:
-    # توجه: کرون گیت‌هاب روی UTC است و گاهی چند دقیقه تاخیر دارد
     - cron: "0,15,30,45 * * * *"
+
+concurrency:
+  group: mahdaviyan-post-once
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -13,8 +16,15 @@ jobs:
   post:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout latest main
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Pull newest state before post
+        run: |
+          git pull --rebase origin main || true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -30,14 +40,18 @@ jobs:
           CHAT_ID: ${{ secrets.CHAT_ID }}
         run: python post_once.py
 
-      - name: Commit state
+      - name: Commit and push state
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add state.json || true
           if git diff --staged --quiet; then
             echo "No state change"
-          else
-            git commit -m "Update rotation state"
-            git push
+            exit 0
           fi
+          git commit -m "Update anti-repeat state"
+          # اگر همزمان push شد، rebase و دوباره تلاش کن
+          for i in 1 2 3; do
+            git pull --rebase origin main && git push origin main && break
+            sleep 2
+          done
