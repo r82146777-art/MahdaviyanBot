@@ -1,9 +1,11 @@
 {
-  "content_index": 0,
+  "content_index": 1,
   "hikam_index": 0,
   "khutba_index": 0,
   "letter_index": 0,
   "quran_page": 1,
   "last_morning_date": null,
-  "last_posts": []
+  "last_posts": [
+    0
+  ]
 }
