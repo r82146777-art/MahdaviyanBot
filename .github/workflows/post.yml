@@ -1,10 +1,9 @@
 name: Post Mahdavi Content every 15 minutes
 
 on:
+  workflow_dispatch:
   schedule:
-    # هر ۱۵ دقیقه (UTC)
-    - cron: '*/15 * * * *'
-  workflow_dispatch:  # امکان اجرای دستی از تب Actions
+    - cron: "*/15 * * * *"
 
 jobs:
   post:
@@ -16,7 +15,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install dependencies
         run: pip install requests
@@ -25,28 +24,4 @@ jobs:
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: |
-          python -c "
-import os, random, requests
-from contents import CONTENTS
-
-token = os.environ.get('BOT_TOKEN')
-chat_id = os.environ.get('CHAT_ID')
-
-if not token or not chat_id:
-    print('ERROR: BOT_TOKEN or CHAT_ID secret is missing')
-    exit(1)
-
-content = random.choice(CONTENTS)
-print('Selected content preview:', content[:100])
-
-url = f'https://botapi.rubika.ir/v3/{token}/sendMessage'
-payload = {'chat_id': chat_id, 'text': content}
-
-try:
-    resp = requests.post(url, json=payload, timeout=25)
-    print('Status:', resp.status_code)
-    print('Response:', resp.text)
-except Exception as e:
-    print('Request failed:', e)
-"
+        run: python post_once.py
