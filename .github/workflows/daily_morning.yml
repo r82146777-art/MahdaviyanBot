@@ -1,16 +1,16 @@
-name: Post every 15 minutes
+name: Daily morning package (8 AM Tehran)
 
 on:
   workflow_dispatch:
   schedule:
-    # توجه: کرون گیت‌هاب روی UTC است و گاهی چند دقیقه تاخیر دارد
-    - cron: "0,15,30,45 * * * *"
+    # 04:30 UTC = 08:00 Asia/Tehran
+    - cron: "30 4 * * *"
 
 permissions:
   contents: write
 
 jobs:
-  post:
+  morning:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -24,11 +24,11 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Send one content to channel
+      - name: Send morning package
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
-        run: python post_once.py
+        run: python daily_morning.py
 
       - name: Commit state
         run: |
@@ -38,6 +38,6 @@ jobs:
           if git diff --staged --quiet; then
             echo "No state change"
           else
-            git commit -m "Update rotation state"
+            git commit -m "Update morning state"
             git push
           fi

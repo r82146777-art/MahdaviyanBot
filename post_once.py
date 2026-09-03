@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+ارسال یک پست چرخشی به کانال مهدویان.
+محتوا ترتیبی است (تکرار کم) و state بعد از هر ارسال ذخیره می‌شود.
+"""
 import json
 import os
 import sys
@@ -7,7 +11,7 @@ from pathlib import Path
 
 import requests
 from contents import CONTENTS
-from nahj_content import HIKAM
+from nahj_content import HIKAM, KHUTAB, LETTERS
 
 API_TIMEOUT = 25
 STATE_FILE = Path("state.json")
@@ -17,8 +21,15 @@ DESTINATIONS = [
     os.environ.get("CHAT_ID", "").strip(),
 ]
 
-# ترکیب محتوای مهدوی + حکمت‌های نهج‌البلاغه
-POOL = list(CONTENTS) + ["📖 از نهج‌البلاغه:\n" + h for h in HIKAM]
+POOL = []
+for t in CONTENTS:
+    POOL.append(t)
+for h in HIKAM:
+    POOL.append("📖 از نهج‌البلاغه — حکمت:\n" + h)
+for k in KHUTAB:
+    POOL.append("📜 از نهج‌البلاغه — خطبه:\n" + k)
+for letter in LETTERS:
+    POOL.append("✉️ از نهج‌البلاغه — نامه:\n" + letter)
 
 
 def load_state():
@@ -40,7 +51,7 @@ def next_content(state):
     state["content_index"] = (idx + 1) % len(POOL)
     recent = state.get("last_posts") or []
     recent.append(idx)
-    state["last_posts"] = recent[-40:]
+    state["last_posts"] = recent[-50:]
     return text
 
 
