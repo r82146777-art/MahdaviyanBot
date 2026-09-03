@@ -1,8 +1,10 @@
 {
-  "last_slot": null,
-  "last_hashes": [],
-  "content_index": 0,
-  "sent_count": 0,
+  "last_slot": 1987189,
+  "last_hashes": [
+    "e00a24eb9058c431"
+  ],
+  "content_index": 110,
+  "sent_count": 1,
   "hikam_index": 0,
   "khutba_index": 0,
   "letter_index": 0,
