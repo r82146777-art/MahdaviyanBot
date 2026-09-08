@@ -1,7 +1,6 @@
 {
-  "last_slot": 1987652,
+  "last_slot": 1987653,
   "last_hashes": [
-    "ed1deca1a8a470ab",
     "4c05008f7aae89ea",
     "d4e240f59561c355",
     "4df58b5254fbb3b9",
@@ -80,10 +79,11 @@
     "d50e0e5663fd9692",
     "dfd7817b6a422832",
     "7c7bd2222359bae3",
-    "dd116a6c0c37d7c4"
+    "dd116a6c0c37d7c4",
+    "4408d83403538b24"
   ],
-  "content_index": 138,
-  "sent_count": 437,
+  "content_index": 139,
+  "sent_count": 438,
   "hikam_index": 0,
   "khutba_index": 1,
   "letter_index": 1,
