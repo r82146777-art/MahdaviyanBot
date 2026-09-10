@@ -56,8 +56,6 @@ def tehran_now():
 
 
 def is_active_hours(now):
-    # TEMP for manual test — always allow
-    return True
     h, m = now.hour, now.minute
     if h < 5:
         return False
