@@ -3,7 +3,7 @@
 """
 بسته صبحگاهی کانال مهدویان (حدود ۵ صبح تهران)
 ۱. تقویم روز + ذکر اعمال دینی + مناسبت
-۲. متن مهدوی
+۲. متن مهدوی (بدون پیشوند)
 ۳. یک صفحه از قرآن کریم
 """
 import json
@@ -218,10 +218,10 @@ def main():
         return 1
     time.sleep(1.5)
 
-    # ۲. متن مهدوی
+    # ۲. متن مهدوی (بدون پیشوند — فقط خود متن)
     idx = int(state.get("mahdavi_morning_index", 0)) % len(CONTENTS)
     mahdavi = CONTENTS[idx]
-    if not send_any(token, "🌟 متن مهدوی صبحگاهی\n\n" + mahdavi):
+    if not send_any(token, mahdavi):
         return 1
     state["mahdavi_morning_index"] = (idx + 1) % len(CONTENTS)
     time.sleep(1.5)
