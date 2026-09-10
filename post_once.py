@@ -1,24 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ارسال یک پست به کانال مهدویان بدون تکرار در بازه ۱۵ دقیقه‌ای.
+ارسال یک پست به کانال مهدویان هر ۳۰ دقیقه (از ۵ صبح تا ۱۱ شب به وقت تهران).
+محتوا مخلوط از متن مهدوی، نهج‌البلاغه (حکمت، خطبه، نامه) و احادیث.
 """
 import hashlib
 import json
 import os
 import sys
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
 from contents import CONTENTS
-from nahj_content import HIKAM, KHUTAB, LETTERS
+from nahj_content import HIKAM, KHUTAB, LETTERS, HADITHS
 
 API_TIMEOUT = 25
 STATE_FILE = Path("state.json")
-SLOT_SECONDS = 15 * 60
-RECENT_LIMIT = 80
-CHANNEL_FOOTER = "\n\n@Mahdaviyan_azari"
+SLOT_SECONDS = 30 * 60  # ۳۰ دقیقه
+RECENT_LIMIT = 120
+CHANNEL_FOOTER = "\n\n━━━━━━━━━━━━━━\n🔗 کانال مهدویان:\nhttps://rubika.ir/Mahdaviyan_azari\n@Mahdaviyan_azari"
+
+TEHRAN = timezone(timedelta(hours=3, minutes=30))
 
 DESTINATIONS = [
     "@Mahdaviyan_azari",
@@ -26,15 +30,18 @@ DESTINATIONS = [
     os.environ.get("CHAT_ID", "").strip(),
 ]
 
+# استخر محتوا برای یک سال بدون تکرار سریع
 POOL = []
 for t in CONTENTS:
-    POOL.append(t)
+    POOL.append(("mahdavi", t))
 for h in HIKAM:
-    POOL.append("📖 از نهج‌البلاغه — حکمت:\n" + h)
+    POOL.append(("hikam", "📖 از نهج‌البلاغه — حکمت:\n" + h))
 for k in KHUTAB:
-    POOL.append("📜 از نهج‌البلاغه — خطبه:\n" + k)
+    POOL.append(("khutba", "📜 از نهج‌البلاغه — خطبه:\n" + k))
 for letter in LETTERS:
-    POOL.append("✉️ از نهج‌البلاغه — نامه:\n" + letter)
+    POOL.append(("letter", "✉️ از نهج‌البلاغه — نامه:\n" + letter))
+for hd in HADITHS:
+    POOL.append(("hadith", "📿 حدیث:\n" + hd))
 
 
 def text_hash(text):
@@ -43,9 +50,25 @@ def text_hash(text):
 
 def with_footer(text):
     body = (text or "").rstrip()
-    if body.endswith("@Mahdaviyan_azari"):
+    if "rubika.ir/Mahdaviyan_azari" in body:
         return body
     return body + CHANNEL_FOOTER
+
+
+def tehran_now():
+    return datetime.now(TEHRAN)
+
+
+def is_active_hours(now):
+    """از ۵:۰۰ تا ۲۳:۰۰ (شامل ۲۳:۰۰)"""
+    h, m = now.hour, now.minute
+    if h < 5:
+        return False
+    if h > 23:
+        return False
+    if h == 23 and m > 0:
+        return False
+    return True
 
 
 def current_slot():
@@ -62,6 +85,7 @@ def load_state():
     data.setdefault("last_hashes", [])
     data.setdefault("content_index", 0)
     data.setdefault("sent_count", 0)
+    data.setdefault("pool_index", 0)
     return data
 
 
@@ -99,23 +123,28 @@ def fetch_external_ayah():
 def pick_text(slot, state):
     recent = set(state.get("last_hashes") or [])
     n = len(POOL)
+    if n == 0:
+        return "اللهم عجل لولیک الفرج", text_hash("fallback"), "fallback"
 
-    if slot % 8 == 0:
+    # هر چند اسلات یک آیه تصادفی
+    if slot % 11 == 0:
         external = fetch_external_ayah()
         if external:
             h = text_hash(external)
             if h not in recent:
                 return external, h, "external"
 
+    start = int(state.get("pool_index", 0)) % n
     for offset in range(n):
-        idx = (slot + offset) % n
-        text = POOL[idx]
+        idx = (start + offset) % n
+        kind, text = POOL[idx]
         h = text_hash(text)
         if h not in recent:
             return text, h, idx
 
-    idx = slot % n
-    text = POOL[idx]
+    # اگر همه تکراری بودند، یکی را برگردان
+    idx = start % n
+    kind, text = POOL[idx]
     return text, text_hash(text), idx
 
 
@@ -136,6 +165,13 @@ def main():
         print("ERROR: BOT_TOKEN is missing")
         return 1
 
+    now = tehran_now()
+    print("Tehran now:", now.isoformat())
+
+    if not is_active_hours(now):
+        print("SKIP: outside active hours (5:00–23:00 Tehran)")
+        return 0
+
     slot = current_slot()
     state = load_state()
 
@@ -146,7 +182,7 @@ def main():
     text, h, meta = pick_text(slot, state)
     text = with_footer(text)
     print("slot=", slot, "meta=", meta, "hash=", h)
-    print("preview:", text[:120])
+    print("preview:", text[:150])
 
     ok = False
     tried = []
@@ -169,7 +205,8 @@ def main():
     state["last_hashes"] = hashes[-RECENT_LIMIT:]
     state["sent_count"] = int(state.get("sent_count", 0)) + 1
     if isinstance(meta, int):
-        state["content_index"] = (meta + 1) % len(POOL)
+        state["pool_index"] = (meta + 1) % max(len(POOL), 1)
+        state["content_index"] = state["pool_index"]
     save_state(state)
     print("State saved. sent_count=", state["sent_count"])
     return 0
