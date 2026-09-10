@@ -1,9 +1,9 @@
-name: Post every 15 minutes
+name: Post every 30 minutes (5AM-11PM Tehran)
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0,15,30,45 * * * *"
+    - cron: "0,30 * * * *"
 
 concurrency:
   group: mahdaviyan-post-once
@@ -50,7 +50,6 @@ jobs:
             exit 0
           fi
           git commit -m "Update anti-repeat state"
-          # اگر همزمان push شد، rebase و دوباره تلاش کن
           for i in 1 2 3; do
             git pull --rebase origin main && git push origin main && break
             sleep 2
