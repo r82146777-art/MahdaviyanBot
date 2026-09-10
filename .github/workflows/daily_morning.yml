@@ -1,10 +1,10 @@
-name: Daily morning package (8 AM Tehran)
+name: Daily morning package (5 AM Tehran)
 
 on:
   workflow_dispatch:
   schedule:
-    # 04:30 UTC = 08:00 Asia/Tehran
-    - cron: "30 4 * * *"
+    # 01:30 UTC = 05:00 Asia/Tehran
+    - cron: "30 1 * * *"
 
 permissions:
   contents: write
