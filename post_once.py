@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ارسال یک پست به کانال مهدویان هر ۳۰ دقیقه (از ۵ صبح تا ۱۱ شب به وقت تهران).
-محتوا مخلوط از متن مهدوی، نهج‌البلاغه (حکمت، خطبه، نامه) و احادیث.
+ارسال یک پست به کانال مهدویان هر ۳۰ دقیقه (۵ صبح تا ۲۳ به وقت تهران).
+محتوا به صورت ترتیبی و بدون تکرار تا اتمام کل بانک (برای پوشش یک سال).
+ترتیب چرخشی دسته‌ها: مهدوی → حکمت → حدیث → خطبه → نامه → آیه
 """
 import hashlib
 import json
@@ -18,8 +19,7 @@ from nahj_content import HIKAM, KHUTAB, LETTERS, HADITHS
 
 API_TIMEOUT = 25
 STATE_FILE = Path("state.json")
-SLOT_SECONDS = 30 * 60  # ۳۰ دقیقه
-RECENT_LIMIT = 120
+SLOT_SECONDS = 30 * 60
 CHANNEL_FOOTER = "\n\n━━━━━━━━━━━━━━\n🔗 کانال مهدویان:\nhttps://rubika.ir/Mahdaviyan_azari\n@Mahdaviyan_azari"
 
 TEHRAN = timezone(timedelta(hours=3, minutes=30))
@@ -30,18 +30,14 @@ DESTINATIONS = [
     os.environ.get("CHAT_ID", "").strip(),
 ]
 
-# استخر محتوا برای یک سال بدون تکرار سریع
-POOL = []
-for t in CONTENTS:
-    POOL.append(("mahdavi", t))
-for h in HIKAM:
-    POOL.append(("hikam", "📖 از نهج‌البلاغه — حکمت:\n" + h))
-for k in KHUTAB:
-    POOL.append(("khutba", "📜 از نهج‌البلاغه — خطبه:\n" + k))
-for letter in LETTERS:
-    POOL.append(("letter", "✉️ از نهج‌البلاغه — نامه:\n" + letter))
-for hd in HADITHS:
-    POOL.append(("hadith", "📿 حدیث:\n" + hd))
+# دسته‌بندی محتوا برای ارسال ترتیبی بدون تکرار
+CATEGORIES = [
+    ("mahdavi", CONTENTS, "🌟 متن مهدوی\n\n"),
+    ("hikam", HIKAM, "📖 از نهج‌البلاغه — حکمت:\n"),
+    ("hadith", HADITHS, "📿 حدیث:\n"),
+    ("khutba", KHUTAB, "📜 از نهج‌البلاغه — خطبه:\n"),
+    ("letter", LETTERS, "✉️ از نهج‌البلاغه — نامه:\n"),
+]
 
 
 def text_hash(text):
@@ -60,7 +56,6 @@ def tehran_now():
 
 
 def is_active_hours(now):
-    """از ۵:۰۰ تا ۲۳:۰۰ (شامل ۲۳:۰۰)"""
     h, m = now.hour, now.minute
     if h < 5:
         return False
@@ -82,10 +77,14 @@ def load_state():
     else:
         data = {}
     data.setdefault("last_slot", None)
-    data.setdefault("last_hashes", [])
-    data.setdefault("content_index", 0)
     data.setdefault("sent_count", 0)
-    data.setdefault("pool_index", 0)
+    data.setdefault("category_turn", 0)  # کدام دسته بعدی است
+    data.setdefault("mahdavi_index", 0)
+    data.setdefault("hikam_index", 0)
+    data.setdefault("hadith_index", 0)
+    data.setdefault("khutba_index", 0)
+    data.setdefault("letter_index", 0)
+    data.setdefault("ayah_count", 0)
     return data
 
 
@@ -120,32 +119,51 @@ def fetch_external_ayah():
         return None
 
 
-def pick_text(slot, state):
-    recent = set(state.get("last_hashes") or [])
-    n = len(POOL)
-    if n == 0:
-        return "اللهم عجل لولیک الفرج", text_hash("fallback"), "fallback"
+def pick_sequential(state):
+    """انتخاب ترتیبی از دسته‌ها بدون تکرار تا اتمام بانک هر دسته"""
+    turn = int(state.get("category_turn", 0))
 
-    # هر چند اسلات یک آیه تصادفی
-    if slot % 11 == 0:
-        external = fetch_external_ayah()
-        if external:
-            h = text_hash(external)
-            if h not in recent:
-                return external, h, "external"
+    # هر ۷ نوبت یک آیه تصادفی (برای تنوع)
+    if turn % 7 == 6:
+        ayah = fetch_external_ayah()
+        if ayah:
+            state["ayah_count"] = int(state.get("ayah_count", 0)) + 1
+            state["category_turn"] = turn + 1
+            return ayah, "ayah"
 
-    start = int(state.get("pool_index", 0)) % n
-    for offset in range(n):
-        idx = (start + offset) % n
-        kind, text = POOL[idx]
-        h = text_hash(text)
-        if h not in recent:
-            return text, h, idx
+    # چرخش بین دسته‌ها
+    for offset in range(len(CATEGORIES)):
+        cat_idx = (turn + offset) % len(CATEGORIES)
+        key, items, prefix = CATEGORIES[cat_idx]
+        idx_key = key + "_index"
+        current = int(state.get(idx_key, 0))
 
-    # اگر همه تکراری بودند، یکی را برگردان
-    idx = start % n
-    kind, text = POOL[idx]
-    return text, text_hash(text), idx
+        if not items:
+            continue
+
+        # اگر هنوز آیتم استفاده نشده داریم
+        if current < len(items):
+            text = prefix + items[current]
+            state[idx_key] = current + 1
+            state["category_turn"] = turn + 1
+            return text, f"{key}:{current}"
+
+        # اگر تموم شده، از اول شروع کن (بعد از یک دور کامل)
+        # ولی اول بقیه دسته‌ها را چک کن
+
+    # اگر همه دسته‌ها حداقل یک دور زده‌اند، از اول کوچک‌ترین ایندکس استفاده کن
+    for key, items, prefix in CATEGORIES:
+        if not items:
+            continue
+        idx_key = key + "_index"
+        current = int(state.get(idx_key, 0)) % len(items)
+        text = prefix + items[current]
+        state[idx_key] = current + 1
+        state["category_turn"] = turn + 1
+        return text, f"{key}:cycle:{current}"
+
+    # fallback
+    return "اللهم عجل لولیک الفرج\n\nیاد امام زمان (عج) را زنده نگه داریم.", "fallback"
 
 
 def send(token, chat_id, text):
@@ -179,10 +197,10 @@ def main():
         print("SKIP: already posted for slot", slot)
         return 0
 
-    text, h, meta = pick_text(slot, state)
+    text, meta = pick_sequential(state)
     text = with_footer(text)
-    print("slot=", slot, "meta=", meta, "hash=", h)
-    print("preview:", text[:150])
+    print("slot=", slot, "meta=", meta)
+    print("preview:", text[:160])
 
     ok = False
     tried = []
@@ -200,15 +218,13 @@ def main():
         return 1
 
     state["last_slot"] = slot
-    hashes = state.get("last_hashes") or []
-    hashes.append(h)
-    state["last_hashes"] = hashes[-RECENT_LIMIT:]
     state["sent_count"] = int(state.get("sent_count", 0)) + 1
-    if isinstance(meta, int):
-        state["pool_index"] = (meta + 1) % max(len(POOL), 1)
-        state["content_index"] = state["pool_index"]
     save_state(state)
     print("State saved. sent_count=", state["sent_count"])
+    print("Indexes → mahdavi:{}, hikam:{}, hadith:{}, khutba:{}, letter:{}".format(
+        state.get("mahdavi_index"), state.get("hikam_index"),
+        state.get("hadith_index"), state.get("khutba_index"), state.get("letter_index")
+    ))
     return 0
 
 
