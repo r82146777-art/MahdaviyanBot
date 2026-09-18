@@ -1,5 +1,5 @@
 {
-  "last_slot": 994289,
+  "last_slot": 994290,
   "last_hashes": [
     "3fe135cfef4f9041",
     "fb6a84f3559649bf",
@@ -83,14 +83,14 @@
     "0506ae07224256c3"
   ],
   "content_index": 64,
-  "sent_count": 899,
+  "sent_count": 900,
   "hikam_index": 50,
   "khutba_index": 12,
   "letter_index": 12,
   "quran_page": 10,
   "last_morning_date": "2026-09-14",
-  "category_turn": 263,
-  "mahdavi_index": 139,
+  "category_turn": 264,
+  "mahdavi_index": 140,
   "hadith_index": 25,
   "ayah_count": 37,
   "mahdavi_morning_index": 2
