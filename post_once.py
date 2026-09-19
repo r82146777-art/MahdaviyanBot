@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ارسال یک پست هر ۳۰ دقیقه (۵ صبح تا ۲۳ تهران).
-محتوا ترتیبی و بدون تکرار تا اتمام بانک هر دسته.
-ترتیب: مهدوی → حکمت → حدیث → خطبه → نامه → آیه ترتیبی
+ارسال یک پست در هر نیم‌ساعت تهران (۵:۰۰ تا ۲۳:۰۰).
+اسلات بر اساس ساعت تهران است تا اگر Actions دیر اجرا شد، همان نیم‌ساعت پر شود.
+محتوا ترتیبی و بدون تکرار.
 """
 import json
 import os
 import sys
-import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -18,7 +17,6 @@ from nahj_content import HIKAM, KHUTAB, LETTERS, HADITHS
 
 API_TIMEOUT = 25
 STATE_FILE = Path("state.json")
-SLOT_SECONDS = 30 * 60
 CHANNEL_FOOTER = (
     "\n\n━━━━━━━━━━━━━━\n"
     "🔗 کانال مهدویان:\n"
@@ -55,18 +53,30 @@ def tehran_now():
 
 
 def is_active_hours(now):
+    """۵:۰۰ تا ۲۳:۰۰ تهران (آخرین اسلات: ۲۲:۳۰)"""
     h, m = now.hour, now.minute
     if h < 5:
         return False
-    if h > 23:
-        return False
-    if h == 23 and m > 0:
+    if h >= 23:
         return False
     return True
 
 
-def current_slot():
-    return int(time.time() // SLOT_SECONDS)
+def tehran_slot_id(now):
+    """شناسه نیم‌ساعت تهران: 2026-09-19-14-0 (=14:00) یا 14-1 (=14:30)"""
+    half = 0 if now.minute < 30 else 1
+    return f"{now.strftime('%Y-%m-%d')}-{now.hour:02d}-{half}"
+
+
+def slot_label(slot_id):
+    """برای لاگ خوانا"""
+    try:
+        parts = slot_id.rsplit("-", 2)
+        day, hour, half = parts[0], parts[1], parts[2]
+        minute = "00" if half == "0" else "30"
+        return f"{day} {hour}:{minute} Tehran"
+    except Exception:
+        return slot_id
 
 
 def load_state():
@@ -75,7 +85,8 @@ def load_state():
             data = json.load(f)
     else:
         data = {}
-    data.setdefault("last_slot", None)
+    data.setdefault("last_tehran_slot", None)
+    data.setdefault("last_slot", None)  # سازگاری قدیمی
     data.setdefault("sent_count", 0)
     data.setdefault("category_turn", 0)
     data.setdefault("mahdavi_index", 0)
@@ -191,16 +202,18 @@ def main():
         print("SKIP: outside active hours (5:00–23:00 Tehran)")
         return 0
 
-    slot = current_slot()
+    slot = tehran_slot_id(now)
+    print("Current Tehran slot:", slot_label(slot), "id=", slot)
+
     state = load_state()
 
-    if state.get("last_slot") == slot:
-        print("SKIP: already posted for slot", slot)
+    if state.get("last_tehran_slot") == slot:
+        print("SKIP: already posted for this half-hour:", slot_label(slot))
         return 0
 
     text, meta = pick_sequential(state)
     text = with_footer(text)
-    print("slot=", slot, "meta=", meta)
+    print("meta=", meta)
     print("preview:", text[:180])
 
     ok = False
@@ -210,7 +223,7 @@ def main():
             continue
         tried.append(chat_id)
         if send(token, chat_id, text):
-            print("Posted using", chat_id)
+            print("Posted using", chat_id, "for slot", slot_label(slot))
             ok = True
             break
 
@@ -218,7 +231,8 @@ def main():
         print("ERROR: could not send")
         return 1
 
-    state["last_slot"] = slot
+    state["last_tehran_slot"] = slot
+    state["last_slot"] = slot  # سازگاری
     state["sent_count"] = int(state.get("sent_count", 0)) + 1
     save_state(state)
     print("State saved. sent_count=", state["sent_count"])
