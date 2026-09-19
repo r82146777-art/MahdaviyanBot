@@ -1,9 +1,11 @@
 name: Post every 30 minutes (5AM-11PM Tehran)
 
+# هر ۱۰ دقیقه یک‌بار چک می‌کند؛ در هر نیم‌ساعت تهران حداکثر یک پست
+# (اگر GitHub دیر اجرا کند، همان اسلات نیم‌ساعته پر می‌شود)
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0,30 * * * *"
+    - cron: "*/10 * * * *"
 
 concurrency:
   group: mahdaviyan-post-once
@@ -23,7 +25,8 @@ jobs:
           fetch-depth: 0
 
       - name: Pull newest state before post
-        run: git pull --rebase origin main || true
+        run: |
+          git pull --rebase origin main || true
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -33,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Send one content to channel
+      - name: Send one content if slot empty
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
