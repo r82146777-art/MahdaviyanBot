@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-بسته صبحگاهی کانال مهدویان (حدود ۵ صبح تهران)
-۱. تقویم روز + ذکر اعمال دینی + مناسبت
+بسته صبحگاهی (حدود ۵ صبح تهران):
+۱. تقویم دقیق شمسی + اعمال + مناسبت
 ۲. متن مهدوی (بدون پیشوند)
-۳. یک صفحه از قرآن کریم
+۳. یک صفحه ترتیبی از قرآن کریم
 """
 import json
 import os
@@ -13,13 +13,18 @@ import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+import jdatetime
 import requests
 from contents import CONTENTS
-from nahj_content import HIKAM  # فقط برای تنوع احتمالی
 
 API_TIMEOUT = 30
 STATE_FILE = Path("state.json")
-CHANNEL_FOOTER = "\n\n━━━━━━━━━━━━━━\n🔗 کانال مهدویان:\nhttps://rubika.ir/Mahdaviyan_azari\n@Mahdaviyan_azari"
+CHANNEL_FOOTER = (
+    "\n\n━━━━━━━━━━━━━━\n"
+    "🔗 کانال مهدویان:\n"
+    "https://rubika.ir/Mahdaviyan_azari\n"
+    "@Mahdaviyan_azari"
+)
 
 DESTINATIONS = [
     "@Mahdaviyan_azari",
@@ -29,8 +34,6 @@ DESTINATIONS = [
 
 TEHRAN = timezone(timedelta(hours=3, minutes=30))
 API_BASE = "https://api.alquran.cloud/v1"
-ARABIC_EDITION = "quran-uthmani"
-PERSIAN_EDITION = "fa.fooladvand"
 
 WEEKDAYS_FA = [
     "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنج‌شنبه", "جمعه", "شنبه", "یکشنبه",
@@ -41,7 +44,6 @@ JALALI_MONTHS = [
     "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند",
 ]
 
-# مناسبت‌های تقریبی ثابت شمسی (نمونه برای یک سال)
 OCCASIONS = {
     (1, 1): "نوروز — آغاز سال نو شمسی. روز نو شدن طبیعت و دل‌ها.",
     (1, 12): "روز جمهوری اسلامی",
@@ -49,20 +51,18 @@ OCCASIONS = {
     (3, 14): "رحلت امام خمینی (ره)",
     (3, 15): "قیام ۱۵ خرداد",
     (6, 31): "آغاز هفته دفاع مقدس",
-    (9, 9): "روز عرفه (تقریبی — بسته به قمری)",
     (11, 22): "پیروزی انقلاب اسلامی",
     (12, 29): "روز ملی شدن صنعت نفت",
 }
 
-# اعمال پیشنهادی بر اساس روز هفته
 DAILY_ACTS = {
-    0: "امروز دوشنبه است.\n• خواندن دعای عهد\n• صدقه دادن\n• زیارت مجازی امام زمان (عج)",
-    1: "امروز سه‌شنبه است.\n• تلاوت قرآن (حداقل یک صفحه)\n• صلوات بسیار\n• یاد امام زمان در دل",
-    2: "امروز چهارشنبه است.\n• دعای فرج\n• کمک به نیازمندان\n• مطالعه درباره ظهور",
-    3: "امروز پنج‌شنبه است.\n• زیارت اهل قبور (اگر ممکن)\n• دعای کمیل\n• آمادگی برای جمعه",
-    4: "امروز جمعه است — عید هفته.\n• دعای ندبه\n• غسل جمعه\n• زیارت امام زمان (عج)\n• دعای فرج ویژه",
-    5: "امروز شنبه است.\n• شروع هفته با یاد حضرت\n• برنامه‌ریزی اعمال صالح\n• صله رحم",
-    6: "امروز یکشنبه است.\n• تجدید عهد با امام زمان\n• خواندن زیارت آل یاسین\n• خودسازی",
+    0: "امروز دوشنبه است.\n• خواندن دعای عهد\n• صدقه دادن\n• زیارت مجازی امام زمان (عج)\n• یاد حضرت در دل",
+    1: "امروز سه‌شنبه است.\n• تلاوت قرآن (حداقل یک صفحه)\n• صلوات بسیار\n• یاد امام زمان در دل\n• کمک به نیازمندان",
+    2: "امروز چهارشنبه است.\n• دعای فرج\n• کمک به نیازمندان\n• مطالعه درباره ظهور\n• ترک یک گناه",
+    3: "امروز پنج‌شنبه است.\n• زیارت اهل قبور (اگر ممکن)\n• دعای کمیل\n• آمادگی برای جمعه\n• صدقه",
+    4: "امروز جمعه است — عید هفته.\n• دعای ندبه\n• غسل جمعه\n• زیارت امام زمان (عج)\n• دعای فرج ویژه\n• صله رحم",
+    5: "امروز شنبه است.\n• شروع هفته با یاد حضرت\n• برنامه‌ریزی اعمال صالح\n• صله رحم\n• دعای عهد",
+    6: "امروز یکشنبه است.\n• تجدید عهد با امام زمان\n• خواندن زیارت آل یاسین\n• خودسازی\n• صدقه",
 }
 
 
@@ -82,13 +82,8 @@ def load_state():
         with open(STATE_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     return {
-        "content_index": 0,
-        "hikam_index": 0,
-        "khutba_index": 0,
-        "letter_index": 0,
         "quran_page": 1,
         "last_morning_date": None,
-        "last_posts": [],
         "mahdavi_morning_index": 0,
     }
 
@@ -100,14 +95,18 @@ def save_state(state):
 
 
 def send(token, chat_id, text):
-    url = "https://botapi.rubika.ir/v3/{}/sendMessage".format(token)
-    resp = requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=API_TIMEOUT)
+    url = f"https://botapi.rubika.ir/v3/{token}/sendMessage"
+    resp = requests.post(
+        url, json={"chat_id": chat_id, "text": text}, timeout=API_TIMEOUT
+    )
     print("HTTP", resp.status_code, resp.text[:250])
     try:
         data = resp.json()
     except Exception:
         return False
-    return data.get("status") == "OK" or bool((data.get("data") or {}).get("message_id"))
+    return data.get("status") == "OK" or bool(
+        (data.get("data") or {}).get("message_id")
+    )
 
 
 def send_any(token, text):
@@ -121,43 +120,16 @@ def send_any(token, text):
     return False
 
 
-def gregorian_to_jalali(gy, gm, gd):
-    """تبدیل میلادی به شمسی (الگوریتم استاندارد بدون وابستگی)"""
-    g_d_m = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
-    if gy > 1600:
-        gy -= 1600
-        jy = 979
-    else:
-        gy -= 621
-        jy = 0
-    gy2 = gy + 1 if gm > 2 else gy
-    days = (365 * gy) + (gy2 // 4) - (gy2 // 100) + (gy2 // 400) - 80 + gd + g_d_m[gm - 1]
-    jy += 33 * (days // 12053)
-    days %= 12053
-    jy += 4 * (days // 1461)
-    days %= 1461
-    if days > 365:
-        jy += (days - 1) // 365
-        days = (days - 1) % 365
-    if days < 186:
-        jm = 1 + days // 31
-        jd = 1 + (days % 31)
-    else:
-        jm = 7 + (days - 186) // 30
-        jd = 1 + ((days - 186) % 30)
-    return jy, jm, jd
-
-
 def calendar_text(now):
+    j = jdatetime.datetime.fromgregorian(datetime=now.replace(tzinfo=None))
     wd = WEEKDAYS_FA[now.weekday()]
-    jy, jm, jd = gregorian_to_jalali(now.year, now.month, now.day)
-    month_name = JALALI_MONTHS[jm - 1] if 1 <= jm <= 12 else str(jm)
+    month_name = JALALI_MONTHS[j.month - 1]
+    jy, jm, jd = j.year, j.month, j.day
 
     occasion = OCCASIONS.get((jm, jd), "")
     if not occasion:
-        # مناسبت‌های کلی
         if now.weekday() == 4:
-            occasion = "جمعه — روز ویژه دعا و انتظار فرج"
+            occasion = "جمعه — روز ویژه دعا و انتظار فرج حضرت مهدی (عج)"
         else:
             occasion = "روزی دیگر در مسیر انتظار حضرت مهدی (عج)"
 
@@ -177,25 +149,30 @@ def calendar_text(now):
 
 
 def quran_page_text(page):
-    ar = requests.get(f"{API_BASE}/page/{page}/{ARABIC_EDITION}", timeout=30)
+    page = max(1, min(604, int(page)))
+    ar = requests.get(f"{API_BASE}/page/{page}/quran-uthmani", timeout=30)
     ar.raise_for_status()
-    fa = requests.get(f"{API_BASE}/page/{page}/{PERSIAN_EDITION}", timeout=30)
+    fa = requests.get(f"{API_BASE}/page/{page}/fa.fooladvand", timeout=30)
     fa.raise_for_status()
     arabic = ar.json()["data"]["ayahs"]
     persian = fa.json()["data"]["ayahs"]
 
-    lines = [f"📖 صفحه {page} قرآن کریم\nمتن عربی + ترجمه فولادوند\n" + "─" * 16]
-    for a, p in list(zip(arabic, persian))[:10]:
+    lines = [
+        f"📖 صفحه {page} از ۶۰۴ — قرآن کریم\n"
+        "متن عربی + ترجمه فولادوند\n"
+        + "─" * 16
+    ]
+    for a, p in list(zip(arabic, persian))[:12]:
         lines.append(
             f"{a['surah']['name']} | آیه {a['numberInSurah']}\n"
             f"{a['text']}\n"
             f"{p['text']}\n"
         )
-    if len(arabic) > 10:
-        lines.append("... (ادامه آیات این صفحه در قرآن)")
+    if len(arabic) > 12:
+        lines.append("... (ادامه آیات این صفحه در قرآن کریم)")
     text = "\n".join(lines)
-    if len(text) > 3500:
-        text = text[:3400] + "\n..."
+    if len(text) > 3800:
+        text = text[:3700] + "\n..."
     return text
 
 
@@ -213,20 +190,18 @@ def main():
         print("Morning package already sent today.")
         return 0
 
-    # ۱. تقویم + اعمال + مناسبت
     if not send_any(token, calendar_text(now)):
         return 1
     time.sleep(1.5)
 
-    # ۲. متن مهدوی (بدون پیشوند — فقط خود متن)
-    idx = int(state.get("mahdavi_morning_index", 0)) % len(CONTENTS)
-    mahdavi = CONTENTS[idx]
-    if not send_any(token, mahdavi):
-        return 1
-    state["mahdavi_morning_index"] = (idx + 1) % len(CONTENTS)
+    idx = int(state.get("mahdavi_morning_index", 0))
+    if CONTENTS:
+        mahdavi = CONTENTS[idx % len(CONTENTS)]
+        if not send_any(token, mahdavi):
+            return 1
+        state["mahdavi_morning_index"] = idx + 1
     time.sleep(1.5)
 
-    # ۳. صفحه قرآن
     page = int(state.get("quran_page", 1))
     if page < 1 or page > 604:
         page = 1
@@ -237,11 +212,16 @@ def main():
         state["quran_page"] = page + 1 if page < 604 else 1
     except Exception as e:
         print("Quran page error:", e)
-        send_any(token, f"📖 امروز صفحه {page} قرآن کریم\n(موقتاً دریافت متن کامل ممکن نشد)\nاللهم عجل لولیک الفرج")
+        send_any(
+            token,
+            f"📖 امروز صفحه {page} قرآن کریم\n"
+            "(موقتاً دریافت متن کامل ممکن نشد — فردا ادامه می‌دهیم)\n"
+            "اللهم عجل لولیک الفرج",
+        )
 
     state["last_morning_date"] = today
     save_state(state)
-    print("Morning package done (calendar + mahdavi + quran).")
+    print("Morning package done.")
     return 0
 
 
