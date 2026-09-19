@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ارسال یک پست به کانال مهدویان هر ۳۰ دقیقه (۵ صبح تا ۲۳ به وقت تهران).
-محتوا به صورت ترتیبی و بدون تکرار تا اتمام کل بانک (برای پوشش یک سال).
-ترتیب چرخشی دسته‌ها: مهدوی → حکمت → حدیث → خطبه → نامه → آیه
+ارسال یک پست هر ۳۰ دقیقه (۵ صبح تا ۲۳ تهران).
+محتوا ترتیبی و بدون تکرار تا اتمام بانک هر دسته.
+ترتیب: مهدوی → حکمت → حدیث → خطبه → نامه → آیه ترتیبی
 """
-import hashlib
 import json
 import os
 import sys
@@ -20,7 +19,12 @@ from nahj_content import HIKAM, KHUTAB, LETTERS, HADITHS
 API_TIMEOUT = 25
 STATE_FILE = Path("state.json")
 SLOT_SECONDS = 30 * 60
-CHANNEL_FOOTER = "\n\n━━━━━━━━━━━━━━\n🔗 کانال مهدویان:\nhttps://rubika.ir/Mahdaviyan_azari\n@Mahdaviyan_azari"
+CHANNEL_FOOTER = (
+    "\n\n━━━━━━━━━━━━━━\n"
+    "🔗 کانال مهدویان:\n"
+    "https://rubika.ir/Mahdaviyan_azari\n"
+    "@Mahdaviyan_azari"
+)
 
 TEHRAN = timezone(timedelta(hours=3, minutes=30))
 
@@ -30,9 +34,6 @@ DESTINATIONS = [
     os.environ.get("CHAT_ID", "").strip(),
 ]
 
-# دسته‌بندی محتوا برای ارسال ترتیبی بدون تکرار
-# برای متن مهدوی پیشوند خالی (فقط خود متن)
-# برای نهج‌البلاغه و حدیث پیشوند نگه داشته می‌شود
 CATEGORIES = [
     ("mahdavi", CONTENTS, ""),
     ("hikam", HIKAM, "📖 از نهج‌البلاغه — حکمت:\n"),
@@ -40,10 +41,6 @@ CATEGORIES = [
     ("khutba", KHUTAB, "📜 از نهج‌البلاغه — خطبه:\n"),
     ("letter", LETTERS, "✉️ از نهج‌البلاغه — نامه:\n"),
 ]
-
-
-def text_hash(text):
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 def with_footer(text):
@@ -80,13 +77,13 @@ def load_state():
         data = {}
     data.setdefault("last_slot", None)
     data.setdefault("sent_count", 0)
-    data.setdefault("category_turn", 0)  # کدام دسته بعدی است
+    data.setdefault("category_turn", 0)
     data.setdefault("mahdavi_index", 0)
     data.setdefault("hikam_index", 0)
     data.setdefault("hadith_index", 0)
     data.setdefault("khutba_index", 0)
     data.setdefault("letter_index", 0)
-    data.setdefault("ayah_count", 0)
+    data.setdefault("ayah_number", 1)
     return data
 
 
@@ -96,64 +93,59 @@ def save_state(state):
         f.write("\n")
 
 
-def fetch_external_ayah():
+def fetch_sequential_ayah(number):
     try:
-        r = requests.get("https://api.alquran.cloud/v1/ayah/random/fa.fooladvand", timeout=20)
-        r.raise_for_status()
-        fa = r.json()["data"]
+        n = ((int(number) - 1) % 6236) + 1
+        fa = requests.get(
+            f"https://api.alquran.cloud/v1/ayah/{n}/fa.fooladvand",
+            timeout=20,
+        )
+        fa.raise_for_status()
+        fa_data = fa.json()["data"]
         ar = requests.get(
-            "https://api.alquran.cloud/v1/ayah/{}/{}".format(fa["number"], "quran-uthmani"),
+            f"https://api.alquran.cloud/v1/ayah/{n}/quran-uthmani",
             timeout=20,
         )
         ar.raise_for_status()
-        arabic = ar.json()["data"]
-        surah = fa.get("surah", {}).get("name") or arabic.get("surah", {}).get("name", "")
-        num = fa.get("numberInSurah") or arabic.get("numberInSurah")
+        ar_data = ar.json()["data"]
+        surah = fa_data.get("surah", {}).get("name") or ar_data.get("surah", {}).get("name", "")
+        num = fa_data.get("numberInSurah") or ar_data.get("numberInSurah")
         return (
             "📖 آیه‌ای از قرآن کریم\n"
-            "{} | آیه {}\n\n"
-            "{}\n\n"
-            "{}\n\n"
+            f"{surah} | آیه {num}\n\n"
+            f"{ar_data.get('text', '')}\n\n"
+            f"{fa_data.get('text', '')}\n\n"
             "اللهم عجل لولیک الفرج"
-        ).format(surah, num, arabic.get("text", ""), fa.get("text", ""))
+        )
     except Exception as e:
-        print("external ayah failed:", e)
+        print("ayah fetch failed:", e)
         return None
 
 
 def pick_sequential(state):
-    """انتخاب ترتیبی از دسته‌ها بدون تکرار تا اتمام بانک هر دسته"""
     turn = int(state.get("category_turn", 0))
 
-    # هر ۷ نوبت یک آیه تصادفی (برای تنوع)
-    if turn % 7 == 6:
-        ayah = fetch_external_ayah()
+    if turn % 6 == 5:
+        n = int(state.get("ayah_number", 1))
+        ayah = fetch_sequential_ayah(n)
         if ayah:
-            state["ayah_count"] = int(state.get("ayah_count", 0)) + 1
+            state["ayah_number"] = n + 1
             state["category_turn"] = turn + 1
-            return ayah, "ayah"
+            return ayah, f"ayah:{n}"
 
-    # چرخش بین دسته‌ها
     for offset in range(len(CATEGORIES)):
         cat_idx = (turn + offset) % len(CATEGORIES)
         key, items, prefix = CATEGORIES[cat_idx]
         idx_key = key + "_index"
         current = int(state.get(idx_key, 0))
-
         if not items:
             continue
-
-        # اگر هنوز آیتم استفاده نشده داریم
         if current < len(items):
             text = prefix + items[current]
             state[idx_key] = current + 1
             state["category_turn"] = turn + 1
             return text, f"{key}:{current}"
 
-        # اگر تموم شده، از اول شروع کن (بعد از یک دور کامل)
-        # ولی اول بقیه دسته‌ها را چک کن
-
-    # اگر همه دسته‌ها حداقل یک دور زده‌اند، از اول کوچک‌ترین ایندکس استفاده کن
     for key, items, prefix in CATEGORIES:
         if not items:
             continue
@@ -164,19 +156,26 @@ def pick_sequential(state):
         state["category_turn"] = turn + 1
         return text, f"{key}:cycle:{current}"
 
-    # fallback
-    return "اللهم عجل لولیک الفرج\n\nیاد امام زمان (عج) را زنده نگه داریم.", "fallback"
+    return (
+        "اللهم عجل لولیک الفرج\n\n"
+        "یاد امام زمان (عج) را زنده نگه داریم و برای تعجیل فرج دعا کنیم.",
+        "fallback",
+    )
 
 
 def send(token, chat_id, text):
-    url = "https://botapi.rubika.ir/v3/{}/sendMessage".format(token)
-    resp = requests.post(url, json={"chat_id": chat_id, "text": text}, timeout=API_TIMEOUT)
+    url = f"https://botapi.rubika.ir/v3/{token}/sendMessage"
+    resp = requests.post(
+        url, json={"chat_id": chat_id, "text": text}, timeout=API_TIMEOUT
+    )
     print("Trying", chat_id, "HTTP", resp.status_code, resp.text[:250])
     try:
         data = resp.json()
     except Exception:
         return False
-    return data.get("status") == "OK" or bool((data.get("data") or {}).get("message_id"))
+    return data.get("status") == "OK" or bool(
+        (data.get("data") or {}).get("message_id")
+    )
 
 
 def main():
@@ -202,7 +201,7 @@ def main():
     text, meta = pick_sequential(state)
     text = with_footer(text)
     print("slot=", slot, "meta=", meta)
-    print("preview:", text[:160])
+    print("preview:", text[:180])
 
     ok = False
     tried = []
@@ -223,10 +222,6 @@ def main():
     state["sent_count"] = int(state.get("sent_count", 0)) + 1
     save_state(state)
     print("State saved. sent_count=", state["sent_count"])
-    print("Indexes → mahdavi:{}, hikam:{}, hadith:{}, khutba:{}, letter:{}".format(
-        state.get("mahdavi_index"), state.get("hikam_index"),
-        state.get("hadith_index"), state.get("khutba_index"), state.get("letter_index")
-    ))
     return 0
 
 
