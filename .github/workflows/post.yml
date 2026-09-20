@@ -1,11 +1,13 @@
 name: Post every 30 minutes (5AM-11PM Tehran)
 
 # فقط متن — بدون عکس
-# هر ۵ دقیقه چک؛ در هر نیم‌ساعت تهران حداکثر یک پست
+# تریگر خارجی (cron-job.org) + پشتیبان GitHub schedule
 on:
   workflow_dispatch:
+  repository_dispatch:
+    types: [mahdaviyan-post]
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "0,30 * * * *"
 
 concurrency:
   group: mahdaviyan-post-once
