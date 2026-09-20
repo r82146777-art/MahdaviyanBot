@@ -1,10 +1,10 @@
-name: Heartbeat (keep bot awake)
+name: Heartbeat (keep repo active)
 
-# قلب تپنده — هر ۳۰ دقیقه یک‌بار اجرا می‌شود تا Actions خاموش/خواب نماند
+# فقط مخزن را فعال نگه می‌دارد تا GitHub schedule را کامل خاموش نکند
 on:
   workflow_dispatch:
   schedule:
-    - cron: "5,35 * * * *"   # کمی بعد از پست اصلی، برای بیدار نگه داشتن
+    - cron: "7,37 * * * *"
 
 concurrency:
   group: mahdaviyan-heartbeat
@@ -16,6 +16,7 @@ permissions:
 jobs:
   heartbeat:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +26,6 @@ jobs:
       - name: Pulse
         run: |
           echo "heartbeat $(date -u +%Y-%m-%dT%H:%M:%SZ)" > .heartbeat
-          echo "Bot is alive. Next posts continue on schedule (every 30 min, 5AM-11PM Tehran)."
 
       - name: Commit pulse
         run: |
@@ -36,6 +36,6 @@ jobs:
             echo "No change"
             exit 0
           fi
-          git commit -m "heartbeat: keep Actions awake" || true
+          git commit -m "heartbeat: keep repo active" || true
           git pull --rebase origin main || true
           git push origin main || true
