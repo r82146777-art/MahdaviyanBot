@@ -1,13 +1,15 @@
 name: Post every 30 minutes (5AM-11PM Tehran)
 
-# فقط متن — بدون عکس
-# تریگر خارجی (cron-job.org) + پشتیبان GitHub schedule
+# فقط روی خود GitHub — هر ۵ دقیقه شانس اجرا
+# در هر نیم‌ساعت تهران حداکثر یک پست (منطق داخل post_once.py)
 on:
   workflow_dispatch:
   repository_dispatch:
     types: [mahdaviyan-post]
   schedule:
-    - cron: "0,30 * * * *"
+    # چند زمان مختلف تا اگر یکی در صف بماند، بقیه شانس داشته باشند
+    - cron: "0,5,10,15,20,25 * * * *"
+    - cron: "30,35,40,45,50,55 * * * *"
 
 concurrency:
   group: mahdaviyan-post-once
@@ -19,6 +21,7 @@ permissions:
 jobs:
   post:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout latest main
         uses: actions/checkout@v4
@@ -53,7 +56,7 @@ jobs:
             exit 0
           fi
           git commit -m "Update anti-repeat state"
-          for i in 1 2 3; do
+          for i in 1 2 3 4 5; do
             git pull --rebase origin main && git push origin main && break
-            sleep 2
+            sleep 3
           done
