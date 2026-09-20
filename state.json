@@ -1,15 +1,15 @@
 {
-  "last_slot": "2026-09-20-09-0",
-  "sent_count": 4,
-  "category_turn": 4,
-  "mahdavi_index": 1,
-  "hikam_index": 1,
-  "hadith_index": 1,
-  "khutba_index": 1,
+  "last_slot": null,
+  "last_tehran_slot": null,
+  "sent_count": 0,
+  "category_turn": 0,
+  "mahdavi_index": 0,
+  "hikam_index": 0,
+  "hadith_index": 0,
+  "khutba_index": 0,
   "letter_index": 0,
   "ayah_number": 1,
   "quran_page": 11,
   "last_morning_date": "2026-09-20",
-  "mahdavi_morning_index": 4,
-  "last_tehran_slot": "2026-09-20-09-0"
+  "mahdavi_morning_index": 4
 }
