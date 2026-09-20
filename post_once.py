@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ارسال یک پست در هر نیم‌ساعت تهران (۵:۰۰ تا ۲۳:۰۰).
-اسلات بر اساس ساعت تهران است تا اگر Actions دیر اجرا شد، همان نیم‌ساعت پر شود.
-محتوا ترتیبی و بدون تکرار.
+فقط متن — بدون عکس.
+هر نیم‌ساعت تهران (۵:۰۰ تا ۲۳:۰۰) یک پست.
+لینک کانال در انتهای هر پیام.
+محتوا ترتیبی و بدون تکرار (حدود یک ماه).
 """
 import json
 import os
@@ -53,23 +54,19 @@ def tehran_now():
 
 
 def is_active_hours(now):
-    """۵:۰۰ تا ۲۳:۰۰ تهران (آخرین اسلات: ۲۲:۳۰)"""
-    h, m = now.hour, now.minute
-    if h < 5:
+    if now.hour < 5:
         return False
-    if h >= 23:
+    if now.hour >= 23:
         return False
     return True
 
 
 def tehran_slot_id(now):
-    """شناسه نیم‌ساعت تهران: 2026-09-19-14-0 (=14:00) یا 14-1 (=14:30)"""
     half = 0 if now.minute < 30 else 1
     return f"{now.strftime('%Y-%m-%d')}-{now.hour:02d}-{half}"
 
 
 def slot_label(slot_id):
-    """برای لاگ خوانا"""
     try:
         parts = slot_id.rsplit("-", 2)
         day, hour, half = parts[0], parts[1], parts[2]
@@ -86,7 +83,7 @@ def load_state():
     else:
         data = {}
     data.setdefault("last_tehran_slot", None)
-    data.setdefault("last_slot", None)  # سازگاری قدیمی
+    data.setdefault("last_slot", None)
     data.setdefault("sent_count", 0)
     data.setdefault("category_turn", 0)
     data.setdefault("mahdavi_index", 0)
@@ -174,7 +171,8 @@ def pick_sequential(state):
     )
 
 
-def send(token, chat_id, text):
+def send_text(token, chat_id, text):
+    """فقط sendMessage متنی — بدون عکس/فایل"""
     url = f"https://botapi.rubika.ir/v3/{token}/sendMessage"
     resp = requests.post(
         url, json={"chat_id": chat_id, "text": text}, timeout=API_TIMEOUT
@@ -203,7 +201,7 @@ def main():
         return 0
 
     slot = tehran_slot_id(now)
-    print("Current Tehran slot:", slot_label(slot), "id=", slot)
+    print("Current Tehran slot:", slot_label(slot))
 
     state = load_state()
 
@@ -222,8 +220,8 @@ def main():
         if not chat_id or chat_id in tried:
             continue
         tried.append(chat_id)
-        if send(token, chat_id, text):
-            print("Posted using", chat_id, "for slot", slot_label(slot))
+        if send_text(token, chat_id, text):
+            print("Posted text to", chat_id, "slot", slot_label(slot))
             ok = True
             break
 
@@ -232,7 +230,7 @@ def main():
         return 1
 
     state["last_tehran_slot"] = slot
-    state["last_slot"] = slot  # سازگاری
+    state["last_slot"] = slot
     state["sent_count"] = int(state.get("sent_count", 0)) + 1
     save_state(state)
     print("State saved. sent_count=", state["sent_count"])
