@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 """
 فقط متن — بدون عکس.
-هر نیم‌ساعت تهران (۵:۰۰ تا ۲۳:۰۰) یک پست.
+هر نیم‌ساعت تهران (۵:۰۰ تا ۲۳:۰۰) دقیقاً یک پست.
+احادیث در چرخش پررنگ‌تر.
+بدون تکرار متن بانک‌ها تا اتمام کامل (پوشش حدود یک ماه).
 لینک کانال در انتهای هر پیام.
-محتوا ترتیبی و بدون تکرار (حدود یک ماه).
 """
 import json
 import os
@@ -33,10 +34,12 @@ DESTINATIONS = [
     os.environ.get("CHAT_ID", "").strip(),
 ]
 
+# ترتیب پایه + حدیث پرتکرارتر
 CATEGORIES = [
     ("mahdavi", CONTENTS, ""),
-    ("hikam", HIKAM, "📖 از نهج‌البلاغه — حکمت:\n"),
     ("hadith", HADITHS, "📿 حدیث:\n"),
+    ("hikam", HIKAM, "📖 از نهج‌البلاغه — حکمت:\n"),
+    ("hadith", HADITHS, "📿 حدیث:\n"),  # حدیث دوباره در چرخش
     ("khutba", KHUTAB, "📜 از نهج‌البلاغه — خطبه:\n"),
     ("letter", LETTERS, "✉️ از نهج‌البلاغه — نامه:\n"),
 ]
@@ -62,6 +65,7 @@ def is_active_hours(now):
 
 
 def tehran_slot_id(now):
+    """هر نیم‌ساعت تهران یک شناسه یکتا"""
     half = 0 if now.minute < 30 else 1
     return f"{now.strftime('%Y-%m-%d')}-{now.hour:02d}-{half}"
 
@@ -131,8 +135,10 @@ def fetch_sequential_ayah(number):
 
 
 def pick_sequential(state):
+    """ترتیبی — بدون چرخه تکرار روی بانک متن تا اتمام کامل"""
     turn = int(state.get("category_turn", 0))
 
+    # هر ۶ نوبت یک آیه ترتیبی جدید
     if turn % 6 == 5:
         n = int(state.get("ayah_number", 1))
         ayah = fetch_sequential_ayah(n)
@@ -141,6 +147,7 @@ def pick_sequential(state):
             state["category_turn"] = turn + 1
             return ayah, f"ayah:{n}"
 
+    # چرخش بین دسته‌ها — فقط آیتم استفاده‌نشده
     for offset in range(len(CATEGORIES)):
         cat_idx = (turn + offset) % len(CATEGORIES)
         key, items, prefix = CATEGORIES[cat_idx]
@@ -154,15 +161,13 @@ def pick_sequential(state):
             state["category_turn"] = turn + 1
             return text, f"{key}:{current}"
 
-    for key, items, prefix in CATEGORIES:
-        if not items:
-            continue
-        idx_key = key + "_index"
-        current = int(state.get(idx_key, 0)) % len(items)
-        text = prefix + items[current]
-        state[idx_key] = current + 1
+    # بانک‌ها تمام شدند → فقط آیه ترتیبی جدید (نه تکرار متن قبلی)
+    n = int(state.get("ayah_number", 1))
+    ayah = fetch_sequential_ayah(n)
+    if ayah:
+        state["ayah_number"] = n + 1
         state["category_turn"] = turn + 1
-        return text, f"{key}:cycle:{current}"
+        return ayah, f"ayah:{n}"
 
     return (
         "اللهم عجل لولیک الفرج\n\n"
@@ -172,7 +177,6 @@ def pick_sequential(state):
 
 
 def send_text(token, chat_id, text):
-    """فقط sendMessage متنی — بدون عکس/فایل"""
     url = f"https://botapi.rubika.ir/v3/{token}/sendMessage"
     resp = requests.post(
         url, json={"chat_id": chat_id, "text": text}, timeout=API_TIMEOUT
@@ -212,7 +216,7 @@ def main():
     text, meta = pick_sequential(state)
     text = with_footer(text)
     print("meta=", meta)
-    print("preview:", text[:180])
+    print("preview:", text[:200])
 
     ok = False
     tried = []

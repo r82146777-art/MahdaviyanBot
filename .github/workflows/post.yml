@@ -1,13 +1,12 @@
 name: Post every 30 minutes (5AM-11PM Tehran)
 
-# فقط روی خود GitHub — هر ۵ دقیقه شانس اجرا
-# در هر نیم‌ساعت تهران حداکثر یک پست (منطق داخل post_once.py)
+# هر ۵ دقیقه چک — در هر نیم‌ساعت تهران حداکثر یک پست
+# مخزن عمومی = بدون سقف دقیقه Actions
 on:
   workflow_dispatch:
   repository_dispatch:
     types: [mahdaviyan-post]
   schedule:
-    # چند زمان مختلف تا اگر یکی در صف بماند، بقیه شانس داشته باشند
     - cron: "0,5,10,15,20,25 * * * *"
     - cron: "30,35,40,45,50,55 * * * *"
 
@@ -40,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Send text post if half-hour slot empty
+      - name: Send one post if this half-hour is empty
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_ID: ${{ secrets.CHAT_ID }}
